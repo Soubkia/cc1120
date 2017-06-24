@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+cmake -B.build -H.
+make -C .build/
+env GTEST_COLOR=1 CTEST_OUTPUT_ON_FAILURE=1 make test -C .build/
