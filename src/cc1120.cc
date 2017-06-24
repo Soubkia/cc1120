@@ -31,6 +31,15 @@ cc1120::cc1120()
     bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, LOW);      // default
 }
 
+cc1120::cc1120(Config cfg)
+{
+    cc1120();
+    configure(cfg);
+}
+
+// TODO: Should these pull CS low and wait for MISO to go low?
+//   See hal_spi_rf_trxeb.c. Can't tell if the bcm2835 driver
+//   does this already.
 uint8_t cc1120::read_register(Register address)
 {
     uint8_t addr = address;
@@ -60,6 +69,21 @@ uint8_t cc1120::write_register(Register address, uint8_t val)
     uint8_t buf[3] = {addr, val, 0x00};
     bcm2835_spi_transfern((char *)buf, sizeof(buf));
     return buf[2];
+}
+
+
+uint8_t cc1120::write_register(Register address, uint8_t *vals)
+{
+    // TODO: This is dumb and copies too much.
+    uint8_t addr = address;
+    addr |= WRITE;
+    addr |= BURST_ON;
+    uint8_t buf[sizeof(vals) + 2];
+    buf[0] = addr;
+    std::copy(vals, vals + sizeof(vals), buf);
+    buf[sizeof(buf)] = 0x00;
+    bcm2835_spi_transfern((char *)buf, sizeof(buf));
+    return buf[2]; // TODO: Idk where it returns the status.
 }
 
 uint8_t cc1120::write_register(ExtRegister address, uint8_t val)
@@ -94,6 +118,10 @@ void cc1120::configure(Config cfg)
 
 void cc1120::calibrate()
 {
+    // NOTE::
+    //   I based this of the manualCalibration function which can be found in
+    //   ref/swrc253e/apps/cc1120_long_range_mode/cc1120_lrm_config.c.
+    //
     // This function calibrates the radio according to the CC112x errata.
     // 1) Set VCO (Voltage Controlled Oscillator) cap-array to 0.
     write_register(ExtRegister::FS_VCO2, 0x00);
@@ -109,5 +137,35 @@ void cc1120::calibrate()
     }
     // 4) Read FS_VCO2, FSVO4 and FS_CHP registers obtained with
     //    high VCDAC_START value.
-
+    uint8_t fs_vco2_start_high = read_register(ExtRegister::FS_VCO2);
+    uint8_t fs_vco4_start_high = read_register(ExtRegister::FS_VCO4);
+    uint8_t fs_chp_start_high = read_register(ExtRegister::FS_CHP);
+    // 5) Set VCO cap-array to 0 (FS_VCO2 = 0x00)
+    // 6) Continue with mid VCDAC (original VCDAC_START):
+    write_register(ExtRegister::FS_CAL2,
+                   write_register(ExtRegister::FS_VCO2, 0x00));
+    // 7) Calibrate and wait for calibration to be done
+    //    (radio back in IDLE state)
+    strobe_command(Strobe::SCAL);
+    while (true) {
+        // TODO: Enumify MARC states... 0x41 is IDLE.
+        if (read_register(ExtRegister::MARCSTATE) == 0x41) break;
+    }
+    // 8) Read FS_VCO2, FS_VCO4 and FS_CHP register obtained
+    //    with mid VCDAC_START value.
+    uint8_t fs_vco2_start_mid = read_register(ExtRegister::FS_VCO2);
+    uint8_t fs_vco4_start_mid = read_register(ExtRegister::FS_VCO4);
+    uint8_t fs_chp_start_mid = read_register(ExtRegister::FS_CHP);
+    // 9) Write back highest FS_VCO2 and corresponding FS_VCO
+    //    and FS_CHP result
+    if (fs_vco2_start_high > fs_vco2_start_mid) {
+        write_register(ExtRegister::FS_VCO2, fs_vco2_start_high);
+        write_register(ExtRegister::FS_VCO4, fs_vco4_start_high);
+        write_register(ExtRegister::FS_CHP, fs_chp_start_high);
+    }
+    else {
+        write_register(ExtRegister::FS_VCO2, fs_vco2_start_mid);
+        write_register(ExtRegister::FS_VCO4, fs_vco4_start_mid);
+        write_register(ExtRegister::FS_CHP, fs_chp_start_mid);
+    }
 }

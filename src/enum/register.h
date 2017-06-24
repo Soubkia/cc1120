@@ -48,5 +48,6 @@ enum Register {
     PA_CFG1 = 0x2C,
     PA_CFG0 = 0x2D,
     PKT_LEN = 0x2E,
-    EXTENDED_ADDRESS = 0x2F
+    EXTENDED_ADDRESS = 0x2F,
+    FIFO = 0x3F
 };
