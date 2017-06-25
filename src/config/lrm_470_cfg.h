@@ -3,6 +3,22 @@
 #include "../enum/register.h"
 #include "../enum/ext_register.h"
 
+// Address config = No address check
+// Packet length = 255
+// Modulation format = 2-GFSK
+// PA ramping = true
+// Packet length mode = Variable
+// Bit rate = 0.6
+// Deviation = 1.499176
+// Packet bit length = 0
+// Performance mode = High Performance
+// Carrier frequency = 470.000000
+// RX filter BW = 7.812500
+// Manchester enable = false
+// Symbol rate = 0.6
+// TX power = 15
+// Device address = 0
+// Whitening = false
 extern const Config LRM_470_CFG = {
     {
         {Register::IOCFG3,            0xB0},

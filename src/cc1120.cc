@@ -37,9 +37,15 @@ cc1120::cc1120(Config cfg)
     configure(cfg);
 }
 
-// TODO: Should these pull CS low and wait for MISO to go low?
+// TODO::
+// - Should these pull CS low and wait for MISO to go low?
 //   See hal_spi_rf_trxeb.c. Can't tell if the bcm2835 driver
 //   does this already.
+// - Make this DRY-er.
+// - Consider other options for vector since there is a lot of
+//   front side manipulation.
+// - Documentation for these functions.
+
 uint8_t cc1120::read_register(Register address)
 {
     uint8_t addr = address;
@@ -48,6 +54,18 @@ uint8_t cc1120::read_register(Register address)
     uint8_t buf[2] = {addr, 0x00};
     bcm2835_spi_transfern((char *)buf, sizeof(buf));
     return buf[1];
+}
+
+std::vector<uint8_t> cc1120::read_register(Register address, uint8_t num)
+{
+    uint8_t addr = address;
+    addr |= READ;
+    addr |= BURST_ON;
+    std::vector<uint8_t> buf(num, 0x00);
+    buf.insert(buf.begin(), addr);
+    bcm2835_spi_transfern((char *)buf.data(), buf.size());
+    buf.erase(buf.begin()); // Pop the status byte.
+    return buf;
 }
 
 uint8_t cc1120::read_register(ExtRegister address)
@@ -59,6 +77,20 @@ uint8_t cc1120::read_register(ExtRegister address)
     uint8_t buf[3] = {header, addr, 0x00};
     bcm2835_spi_transfern((char *)buf, sizeof(buf));
     return buf[2];
+}
+
+std::vector<uint8_t> cc1120::read_register(ExtRegister address, uint8_t num)
+{
+    uint8_t addr = address;
+    uint8_t header = Register::EXTENDED_ADDRESS;
+    header |= READ;
+    header |= BURST_OFF;
+    std::vector<uint8_t> buf(num, 0x00);
+    buf.insert(buf.begin(), addr);
+    buf.insert(buf.begin(), header);
+    bcm2835_spi_transfern((char *)buf.data(), buf.size());
+    buf.erase(buf.begin()); // Pop the status byte.
+    return buf;
 }
 
 uint8_t cc1120::write_register(Register address, uint8_t val)
@@ -135,8 +167,8 @@ void cc1120::configure(Config cfg)
 void cc1120::calibrate()
 {
     // NOTE::
-    //   I based this off the manualCalibration function which can be found in
-    //   ref/swrc253e/apps/cc1120_long_range_mode/cc1120_lrm_config.c.
+    //     I based this off the manualCalibration function which can be found in
+    //     ref/swrc253e/apps/cc1120_long_range_mode/cc1120_lrm_config.c.
     //
     // This function calibrates the radio according to the CC112x errata.
     // 1) Set VCO (Voltage Controlled Oscillator) cap-array to 0.
