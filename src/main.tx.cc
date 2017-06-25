@@ -1,10 +1,12 @@
+#include <bitset>
 #include <iostream>
 #include <unistd.h>
+#include <vector>
 #include "cc1120.h"
 #include "config/lrm_470_cfg.h"
 /**
- * This program is based off of ref/.../cc1120_lrm_tx.c. It just configures
- * the cc1120 in long range mode and sends random packets.
+ * This program is based off ref/.../cc1120_lrm_tx.c. It just configures
+ * the cc1120 in long range mode and sends dummy packets.
  *
  * TODO::
  *   - Set up some logging (Boost logger?).
@@ -26,10 +28,12 @@ int main()
 
     uint8_t seqnum = 0;
     while (true) {
-        uint8_t pkt[2] = {
+        // TODO: Packet class that abstracts this stuff?
+        std::vector<uint8_t> pkt = {
             ++seqnum,  // Sequence number.
             0x55,      // Dummy byte.
         };
+        std::cout << "Sending packet " << (uint16_t)seqnum << "..." << std::endl;
         // Write both packets to TX FIFO.
         driver.write_register(Register::FIFO, pkt);
         // Configure a packet size of 2.
@@ -43,11 +47,12 @@ int main()
         // ---------------------------------------------------------------
         // | 0xAA 0xAA 0xAA |  0x26 0x33 0xD9 0xCC | Seq. 0x55 | CRC CRC |
         // ---------------------------------------------------------------
-        std::cout << "Sending packet " << (uint16_t)seqnum << "..." << std::endl;
-        driver.strobe_command(Strobe::STX);
+        std::cout << "  FIFO write status: "
+                  << std::bitset<8>(driver.strobe_command(Strobe::STX))
+                  << std::endl;
 
         // TODO: It should really be waiting for the chip to say it's done
-        // sending but I don't know how to do that yet.
+        // sending but I don't know how to do that!
         sleep(1);
     }
 }

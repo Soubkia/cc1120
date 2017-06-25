@@ -24,9 +24,7 @@ download_project(
 )
 add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
 
-add_executable(main src/main.cc src/bcm2835.c src/cc1120.cc)
-#add_executable(test_main src/main.test.cc)
-#target_link_libraries(test_main gtest gtest_main gmock gmock_main)
-#add_test(NAME test_main COMMAND test_main)
-#add_executable(test_cc1120 src/cc1120.test.cc src/cc1120.cc src/bcm2835.c)
-#add_executable(blink src/blink.cc src/bcm2835.c)
+add_executable(main_tx src/main.tx.cc src/bcm2835.c src/cc1120.cc)
+add_executable(test_cc1120 src/cc1120.test.cc src/cc1120.cc src/bcm2835.c)
+target_link_libraries(test_cc1120 gtest gtest_main)
+add_test(NAME test_cc1120 COMMAND test_cc1120)

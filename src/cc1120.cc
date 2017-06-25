@@ -72,18 +72,21 @@ uint8_t cc1120::write_register(Register address, uint8_t val)
 }
 
 
-uint8_t cc1120::write_register(Register address, uint8_t *vals)
+uint8_t cc1120::write_register(Register address, std::vector<uint8_t> vals)
 {
-    // TODO: This is dumb and copies too much.
     uint8_t addr = address;
     addr |= WRITE;
     addr |= BURST_ON;
-    uint8_t buf[sizeof(vals) + 2];
-    buf[0] = addr;
-    std::copy(vals, vals + sizeof(vals), buf);
-    buf[sizeof(buf)] = 0x00;
-    bcm2835_spi_transfern((char *)buf, sizeof(buf));
-    return buf[2]; // TODO: Idk where it returns the status.
+    vals.insert(vals.begin(), addr);
+    vals.push_back(0x00);
+    bcm2835_spi_transfern((char *)vals.data(), vals.size());
+    // If the most recent status byte is X111XXXX, that means the TX FIFO
+    // has either underflowed or overflowed and we must flush it with an
+    // SFTX strobe before trying again.
+    // TODO: Add logic for this? In general if we get status bytes where we
+    // we know what to do to correct the state maybe these functions should
+    // have logic to attempt that?
+    return vals.back();
 }
 
 uint8_t cc1120::write_register(ExtRegister address, uint8_t val)
@@ -95,6 +98,19 @@ uint8_t cc1120::write_register(ExtRegister address, uint8_t val)
     uint8_t buf[4] = {header, addr, val, 0x00};
     bcm2835_spi_transfern((char *)buf, sizeof(buf));
     return buf[3];
+}
+
+uint8_t cc1120::write_register(ExtRegister address, std::vector<uint8_t> vals)
+{
+    uint8_t addr = address;
+    uint8_t header = Register::EXTENDED_ADDRESS;
+    header |= WRITE;
+    header |= BURST_OFF;
+    vals.insert(vals.begin(), addr);
+    vals.insert(vals.begin(), header);
+    vals.push_back(0x00);
+    bcm2835_spi_transfern((char *)vals.data(), vals.size());
+    return vals.back();
 }
 
 uint8_t cc1120::strobe_command(Strobe command)
@@ -119,7 +135,7 @@ void cc1120::configure(Config cfg)
 void cc1120::calibrate()
 {
     // NOTE::
-    //   I based this of the manualCalibration function which can be found in
+    //   I based this off the manualCalibration function which can be found in
     //   ref/swrc253e/apps/cc1120_long_range_mode/cc1120_lrm_config.c.
     //
     // This function calibrates the radio according to the CC112x errata.
